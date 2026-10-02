@@ -42,16 +42,17 @@ jobs:
       # ----------------------------------------
       # Prepare standalone deployment
       # ----------------------------------------
+
       - name: Prepare deployment files
         run: |
           rm -rf deploy deploy_type.tar.gz
           mkdir -p deploy
 
-          echo "Locating server.js inside standalone build..."
-          STANDALONE_DIR=$(find .next/standalone -name "server.js" -exec dirname {} \;)
+          echo "Locating top-level server.js in standalone build..."
+          STANDALONE_DIR=$(find .next/standalone -maxdepth 4 -name "server.js" | grep -v "node_modules" | head -n 1 | xargs dirname)
           echo "Standalone root directory found at: $STANDALONE_DIR"
 
-          echo "Copying standalone application via rsync..."
+          echo "Copying standalone application..."
           rsync -a "$STANDALONE_DIR/" deploy/
 
           echo "Copying Next.js static files..."
@@ -76,7 +77,6 @@ jobs:
 
           echo "Deployment archive created:"
           ls -lh deploy_type.tar.gz
-
       # ----------------------------------------
       # Validate SSH key
       # ----------------------------------------
