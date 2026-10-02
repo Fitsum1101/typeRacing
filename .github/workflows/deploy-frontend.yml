@@ -50,10 +50,14 @@ jobs:
           rm -rf deploy deploy_type.tar.gz
           mkdir -p deploy
 
-          echo "Copying standalone files..."
-          cp -r .next/standalone/. deploy/
+          echo "Locating server.js inside standalone build..."
+          STANDALONE_DIR=$(find .next/standalone -name "server.js" -exec dirname {} \;)
+          echo "Standalone root directory found at: $STANDALONE_DIR"
 
-          echo "Copying Next.js static files..."
+          echo "Copying standalone application..."
+          cp -r $STANDALONE_DIR/. deploy/
+
+          echo "Copying static assets..."
           mkdir -p deploy/.next/static
           cp -r .next/static/. deploy/.next/static/
 
@@ -63,9 +67,12 @@ jobs:
             cp -r public/. deploy/public/
           fi
 
+          echo "Checking deployment layout..."
+          ls -la deploy
+          ls -la deploy/.next
+
           echo "Creating deployment archive..."
           tar -czf deploy_type.tar.gz -C deploy .
-
       # ----------------------------------------
       # Validate SSH key
       # ----------------------------------------
