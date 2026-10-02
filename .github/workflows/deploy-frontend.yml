@@ -42,36 +42,29 @@ jobs:
       # ----------------------------------------
       # Prepare standalone deployment
       # ----------------------------------------
+      # ----------------------------------------
+      # Prepare standalone deployment
+      # ----------------------------------------
       - name: Prepare deployment files
         run: |
           rm -rf deploy deploy_type.tar.gz
           mkdir -p deploy
 
-          echo "Copying standalone application..."
+          echo "Copying standalone files..."
           cp -r .next/standalone/. deploy/
 
           echo "Copying Next.js static files..."
           mkdir -p deploy/.next/static
           cp -r .next/static/. deploy/.next/static/
 
-          echo "Copying public files..."
+          echo "Copying public assets..."
           if [ -d "public" ]; then
             mkdir -p deploy/public
             cp -r public/. deploy/public/
           fi
 
-          echo "Checking deployment structure..."
-          echo "--------------------------------"
-          ls -lah deploy
-          echo "--------------------------------"
-          ls -lah deploy/.next
-          echo "--------------------------------"
-
           echo "Creating deployment archive..."
           tar -czf deploy_type.tar.gz -C deploy .
-
-          echo "Deployment archive created:"
-          ls -lh deploy_type.tar.gz
 
       # ----------------------------------------
       # Validate SSH key
