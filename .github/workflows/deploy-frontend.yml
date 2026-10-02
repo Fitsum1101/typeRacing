@@ -1,4 +1,4 @@
-name: Deploy Bingo Frontend to cPanel
+name: Deploy Type Subdomain Frontend to cPanel
 
 on:
   push:
@@ -32,57 +32,72 @@ jobs:
         run: npm ci
 
       # ----------------------------------------
-      # Build Next.js
+      # Build Next.js standalone application
       # ----------------------------------------
       - name: Build Next.js application
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_TYPE_API_URL }}
         run: npm run build
 
       # ----------------------------------------
-      # Prepare deployment
+      # Prepare standalone deployment
       # ----------------------------------------
       - name: Prepare deployment files
         run: |
-          set -e
-
-          rm -rf deploy deploy.tar.gz
+          rm -rf deploy deploy_type.tar.gz
           mkdir -p deploy
 
+          echo "Locating server.js inside standalone build..."
+          STANDALONE_DIR=$(find .next/standalone -name "server.js" -exec dirname {} \;)
+          echo "Standalone root directory found at: $STANDALONE_DIR"
+
           echo "Copying standalone application..."
-          cp -r .next/standalone/. deploy/
+          cp -r $STANDALONE_DIR/. deploy/
 
           echo "Copying Next.js static files..."
           mkdir -p deploy/.next/static
           cp -r .next/static/. deploy/.next/static/
 
-          echo "Copying public files..."
+          echo "Copying public assets..."
           if [ -d "public" ]; then
             mkdir -p deploy/public
             cp -r public/. deploy/public/
           fi
 
-          echo "Checking server.js..."
-          test -f deploy/server.js
+          echo "Checking deployment layout..."
+          echo "--------------------------------"
+          ls -lah deploy
+          echo "--------------------------------"
+          ls -lah deploy/.next
+          echo "--------------------------------"
 
           echo "Creating deployment archive..."
-          tar -czf deploy.tar.gz -C deploy .
+          tar -czf deploy_type.tar.gz -C deploy .
 
-          echo "Deployment archive:"
-          ls -lh deploy.tar.gz
+          echo "Deployment archive created:"
+          ls -lh deploy_type.tar.gz
+
+      # ----------------------------------------
+      # Validate SSH key
+      # ----------------------------------------
+      - name: Validate SSH private key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/test_key
+          chmod 600 /tmp/test_key
+          ssh-keygen -y -f /tmp/test_key > /dev/null
+          echo "SSH key is valid"
 
       # ----------------------------------------
       # Test SSH connection
       # ----------------------------------------
       - name: Test SSH connection
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           port: 22
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            set -e
             whoami
             pwd
             echo "SSH connection successful"
@@ -90,22 +105,22 @@ jobs:
       # ----------------------------------------
       # Upload deployment archive
       # ----------------------------------------
-      - name: Upload deployment archive
-        uses: appleboy/scp-action@v1
+      - name: Upload to cPanel
+        uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           port: 22
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: deploy.tar.gz
+          source: deploy_type.tar.gz
           target: /home/axumbiew/
           overwrite: true
 
       # ----------------------------------------
-      # Deploy
+      # Deploy on server
       # ----------------------------------------
       - name: Deploy on server
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
@@ -115,22 +130,22 @@ jobs:
           script: |
             set -e
 
-            APP_DIR="/home/axumbiew/type.axumbingo.com"
-            ARCHIVE="/home/axumbiew/deploy.tar.gz"
-
             echo "========================================"
-            echo "Starting deployment"
+            echo "Starting deployment for type.axumbingo.com..."
             echo "========================================"
 
             # ----------------------------------------
-            # Go to application directory
+            # Move to subdomain application directory
             # ----------------------------------------
-            cd "$APP_DIR"
+            echo "Moving to subdomain application directory..."
+            cd /home/axumbiew/type.axumbingo.com
 
             # ----------------------------------------
             # Remove previous deployment
             # Keep .env and tmp
             # ----------------------------------------
+            echo "Removing previous deployment files..."
+
             find . -mindepth 1 -maxdepth 1 \
               ! -name ".env" \
               ! -name "tmp" \
@@ -139,39 +154,59 @@ jobs:
             # ----------------------------------------
             # Extract new deployment
             # ----------------------------------------
-            tar -xzf "$ARCHIVE"
+            echo "Extracting new deployment..."
+
+            tar -xzf /home/axumbiew/deploy_type.tar.gz
 
             # ----------------------------------------
-            # Remove archive
+            # Remove uploaded archive
             # ----------------------------------------
-            rm -f "$ARCHIVE"
+            echo "Removing deployment archive..."
+
+            rm -f /home/axumbiew/deploy_type.tar.gz
 
             # ----------------------------------------
-            # Activate cPanel Node environment
+            # Activate Node.js environment for subdomain
             # ----------------------------------------
-            source /home/axumbiew/nodevenv/axumbingo.com/24/bin/activate
+            echo "Activating Node.js environment..."
 
-            echo "Node:"
+            source /home/axumbiew/nodevenv/type.axumbingo.com/24/bin/activate
+
+            # ----------------------------------------
+            # Check Node.js version
+            # ----------------------------------------
+            echo "Node.js version:"
             node -v
 
-            echo "NPM:"
+            echo "npm version:"
             npm -v
 
             # ----------------------------------------
-            # Verify deployment
+            # Verify application files
             # ----------------------------------------
-            test -f server.js
-            test -d .next
-
-            echo "Deployment files:"
+            echo "Application files:"
             ls -lah
 
+            echo "Next.js files:"
+            ls -lah .next
+
+            echo "Checking server.js:"
+            ls -lh server.js
+
             # ----------------------------------------
-            # Restart Passenger
+            # Ensure tmp directory exists
             # ----------------------------------------
+            echo "Preparing restart directory..."
+
             mkdir -p tmp
+
+            # ----------------------------------------
+            # Restart Passenger / cPanel Node.js app
+            # ----------------------------------------
+            echo "Restarting Next.js application..."
+
             touch tmp/restart.txt
 
             echo "========================================"
-            echo "Deployment completed successfully"
+            echo "Subdomain deployment completed successfully."
             echo "========================================"
