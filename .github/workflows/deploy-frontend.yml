@@ -51,17 +51,17 @@ jobs:
           STANDALONE_DIR=$(find .next/standalone -name "server.js" -exec dirname {} \;)
           echo "Standalone root directory found at: $STANDALONE_DIR"
 
-          echo "Copying standalone application..."
-          cp -r $STANDALONE_DIR/. deploy/
+          echo "Copying standalone application via rsync..."
+          rsync -a "$STANDALONE_DIR/" deploy/
 
           echo "Copying Next.js static files..."
           mkdir -p deploy/.next/static
-          cp -r .next/static/. deploy/.next/static/
+          rsync -a .next/static/ deploy/.next/static/
 
           echo "Copying public assets..."
           if [ -d "public" ]; then
             mkdir -p deploy/public
-            cp -r public/. deploy/public/
+            rsync -a public/ deploy/public/
           fi
 
           echo "Checking deployment layout..."
